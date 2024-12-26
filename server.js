@@ -1,68 +1,77 @@
-// Import the built-in http module
-const http = require('http');
-const sqlite3 = require('sqlite3').verbose();
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const bodyParser = require('body-parser');
+const userDB = require('./db_conn.js');
+const metricsDB = require('./db_conn.js');
 
-// Define the request handler function
-const requestHandler = (req, res) => {
-  // Set the response header to indicate content type
-  res.setHeader('Content-Type', 'text/plain');
-  
-  // Send a response message
-  res.end('Hello, world!');
-};
+const server = express();
+const port = 3000;
 
-// Open a database in memory or on disk (it will create a new file if it doesn't exist)
-const userDB = new sqlite3.Database('./db/users.sqlite', (err) => {
-  if (err) {
-    console.error('Error opening database', err);
-  } else {
-    console.log('Database created/opened successfully');
-    
-    // Optionally, you can create tables or insert data
-    userDB.run('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER)', (err) => {
-      if (err) {
-        console.error('Error creating table', err);
-      } else {
-        console.log('Table created');
-      }
-    });
+server.use(bodyParser.json()); // Parse JSON request bodies
+
+// Route to register a new user
+server.post('/register', (req, res) => {
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ message: 'Username and password are required' });
   }
+
+  // Hash the password
+  bcrypt.hash(password, 10, (err, hashedPassword) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error hashing password' });
+    }
+
+    // Insert the new user into the database
+    db.run(
+      'INSERT INTO users (username, password) VALUES (?, ?)',
+      [username, hashedPassword],
+      function (err) {
+        if (err) {
+          return res.status(500).json({ message: 'Error saving user to database' });
+        }
+        return res.status(201).json({ message: 'User registered successfully', userId: this.lastID });
+      }
+    );
+  });
 });
 
-const metricsDB = new sqlite3.Database('./db/metrics.sqlite', (err) => {
-  if (err) {
-    console.error('Error opening database', err);
-  } else {
-    console.log('Database created/opened successfully');
-    
-    // Optionally, you can create tables or insert data
-    metricsDB.run('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER)', (err) => {
-      if (err) {
-        console.error('Error creating table', err);
-      } else {
-        console.log('Table created');
-      }
-    });
+// Route to login a user
+server.post('/login', (req, res) => {
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ message: 'Username and password are required' });
   }
+
+  // Retrieve the user's stored hashed password from the database
+  db.get('SELECT * FROM users WHERE username = ?', [username], (err, user) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error retrieving user' });
+    }
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid username or password' });
+    }
+
+    // Compare the provided password with the stored hashed password
+    bcrypt.compare(password, user.password, (err, isMatch) => {
+      if (err) {
+        return res.status(500).json({ message: 'Error comparing passwords' });
+      }
+
+      if (!isMatch) {
+        return res.status(400).json({ message: 'Invalid username or password' });
+      }
+
+      // Successful login
+      return res.status(200).json({ message: 'Login successful' });
+    });
+  });
 });
-
-// Create an HTTP server and pass the request handler
-const server = http.createServer(requestHandler);
-
-// Define the port and hostname to listen on
-const PORT = 3000;
-const HOSTNAME = 'localhost';
 
 // Start the server
-server.listen(PORT, HOSTNAME, () => {
-  console.log(`Server running at http://${HOSTNAME}:${PORT}/`);
+server.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
 });
-
-// Close the database connection when done
-// userDB.close((err) => {
-//   if (err) {
-//     console.error('Error closing the database', err);
-//   } else {
-//     console.log('Database connection closed');
-//   }
-// });
