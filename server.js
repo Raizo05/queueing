@@ -29,6 +29,23 @@ const userDB = new sqlite3.Database('./db/users.sqlite', (err) => {
   }
 });
 
+const metricsDB = new sqlite3.Database('./db/metrics.sqlite', (err) => {
+  if (err) {
+    console.error('Error opening database', err);
+  } else {
+    console.log('Database created/opened successfully');
+    
+    // Optionally, you can create tables or insert data
+    metricsDB.run('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER)', (err) => {
+      if (err) {
+        console.error('Error creating table', err);
+      } else {
+        console.log('Table created');
+      }
+    });
+  }
+});
+
 // Create an HTTP server and pass the request handler
 const server = http.createServer(requestHandler);
 
